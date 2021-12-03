@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -16,19 +17,21 @@ type ServerConfig struct {
 }
 
 func GetEpollFd(size int) int {
-	epfd, err := syscall.EpollCreate(size)
-	if err != nil {
+	if epfd, err := syscall.EpollCreate(size); err == nil {
+		return epfd
+	} else {
 		log.Fatal(err.Error())
+		return -1
 	}
-	return epfd
 }
 
 func GetSocketFd() int {
-	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
-	if err != nil {
+	if sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0); err == nil {
+		return sfd
+	} else {
 		log.Fatal(err.Error())
+		return -1
 	}
-	return sfd
 }
 
 func OctetToByte(octet string) byte {
@@ -37,22 +40,12 @@ func OctetToByte(octet string) byte {
 }
 
 func AddrToBytes(address string) [4]byte {
-	var octet string
-	var addr [4]byte
-	var octetCount int
-	for i := 0; i < len(address); i++ {
-		if address[i] == '.' {
-			addr[octetCount] = OctetToByte(octet)
-			octetCount++
-			octet = ""
-			continue
-		}
-		octet += string(address[i])
-		if octetCount == 3 {
-			addr[3] = OctetToByte(octet)
-		}
-	}
-	return addr
+	octets := strings.Split(address, ".")
+	octet1 := OctetToByte(octets[0])
+	octet2 := OctetToByte(octets[1])
+	octet3 := OctetToByte(octets[2])
+	octet4 := OctetToByte(octets[3])
+	return [4]byte{octet1, octet2, octet3, octet4}
 }
 
 func Bind(port int, sfd int, address string) {
@@ -111,8 +104,6 @@ func main() {
 	flag.IntVar(&config.MaxQueue, "q", 10, "Max queue. Usage: -q 10")
 	flag.StringVar(&config.Address, "a", "127.0.0.1", "Address. Usage: -a 127.0.0.1")
 	flag.Parse()
-
-	AddrToBytes(config.Address)
 
 	events := make([]syscall.EpollEvent, config.MaxConnections)
 	epfd := GetEpollFd(config.MaxConnections)
